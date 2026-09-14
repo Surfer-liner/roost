@@ -32,6 +32,10 @@ enum SelfTest {
         }
       case .fstest(let bundleID):
         lines += FullScreenTest(bundleID: bundleID).run()
+      case .fsmix(let bundleID):
+        lines += FullScreenMixTest(bundleID: bundleID).run()
+      case .cgcount(let bundleID):
+        lines += WindowCensus.report(for: bundleID)
       }
     }
     let report = lines.joined(separator: "\n") + "\n"
@@ -50,6 +54,8 @@ enum SelfTest {
     case summon(String)
     case dumpmenu(String)
     case fstest(String)
+    case fsmix(String)
+    case cgcount(String)
   }
 
   private static func mode() -> Mode? {
@@ -73,6 +79,12 @@ enum SelfTest {
     }
     if let flag = arguments.firstIndex(of: "--fstest"), arguments.indices.contains(flag + 1) {
       return .fstest(arguments[flag + 1])
+    }
+    if let flag = arguments.firstIndex(of: "--fsmix"), arguments.indices.contains(flag + 1) {
+      return .fsmix(arguments[flag + 1])
+    }
+    if let flag = arguments.firstIndex(of: "--cgcount"), arguments.indices.contains(flag + 1) {
+      return .cgcount(arguments[flag + 1])
     }
     return nil
   }
@@ -447,6 +459,72 @@ final class RelaunchTest: WindowDrills {
 
   private func compact(_ rect: CGRect) -> String {
     "(\(Int(rect.origin.x)),\(Int(rect.origin.y)) \(Int(rect.width))x\(Int(rect.height)))"
+  }
+}
+
+enum WindowCensus {
+  static func report(for bundleID: String) -> [String] {
+    guard let app = NSRunningApplication.runningApplications(withBundleIdentifier: bundleID).first else {
+      return ["\(bundleID): not running"]
+    }
+    let pid = app.processIdentifier
+    let axCount = WindowCatalog.windows(of: app).filter { $0.isRestorable }.count
+    let cgCount = coreGraphicsWindowCount(pid: pid)
+    return ["\(app.localizedName ?? bundleID): AX sees \(axCount) restorable, CoreGraphics sees \(cgCount) real windows"]
+  }
+
+  private static func coreGraphicsWindowCount(pid: pid_t) -> Int {
+    let options: CGWindowListOption = [.optionAll, .excludeDesktopElements]
+    guard let list = CGWindowListCopyWindowInfo(options, kCGNullWindowID) as? [[String: Any]] else { return -1 }
+    return list.filter { info in
+      (info[kCGWindowOwnerPID as String] as? pid_t) == pid &&
+        (info[kCGWindowLayer as String] as? Int) == 0
+    }.count
+  }
+}
+
+final class FullScreenMixTest: WindowDrills {
+  private let bundleID: String
+
+  init(bundleID: String) {
+    self.bundleID = bundleID
+  }
+
+  func run() -> [String] {
+    let name = runningApp(bundleID)?.localizedName ?? bundleID
+    guard runningApp(bundleID) != nil, let first = restorableWindows(bundleID).first else {
+      lines.append("SKIP fullscreen-mix — \(name) is not running with a window")
+      return lines
+    }
+    for _ in 0..<4 where restorableWindows(bundleID).count < 2 {
+      if let app = runningApp(bundleID) {
+        WindowSummoner.requestOneMoreWindow(from: app)
+      }
+      _ = waitUntil(6) { self.restorableWindows(self.bundleID).count >= 2 }
+    }
+    guard restorableWindows(bundleID).count >= 2 else {
+      check("\(name): can set up one fullscreen plus one windowed", false, "only \(restorableWindows(bundleID).count) window(s)")
+      return lines
+    }
+    first.setFullScreen(true)
+    _ = waitUntil(10) { self.restorableWindows(self.bundleID).contains { $0.isFullScreen } }
+    spin(1.5)
+    let layout = layoutOfOnly(bundleID)
+    let savedFull = layout.windows.filter { $0.isFullScreen }.count
+    let savedNormal = layout.windows.filter { !$0.isFullScreen }.count
+    fact("\(name): saved \(layout.windows.count) windows (\(savedFull) fullscreen, \(savedNormal) windowed)")
+    quitForGood(bundleID)
+    guard runningApp(bundleID) == nil else {
+      check("\(name): quits before restore", false)
+      return lines
+    }
+    let outcome = restoreAndWait(layout, timeout: 60)
+    spin(3)
+    let all = restorableWindows(bundleID)
+    let full = all.filter { $0.isFullScreen }.count
+    check("\(name): restore does not multiply windows", all.count <= layout.windows.count, "ended with \(all.count), saved \(layout.windows.count), placed \(outcome.placed)/\(outcome.total)")
+    check("\(name): exactly the saved number of fullscreen windows", full == savedFull, "ended \(full) fullscreen, saved \(savedFull)")
+    return lines
   }
 }
 

@@ -82,9 +82,11 @@ public final class LayoutRestorer {
   private func forgetWindowsThatVanished(among live: [AppWindow]) {
     for target in targets {
       guard let window = target.window else { continue }
+      if target.done || target.snapshot.isFullScreen {
+        continue
+      }
       if !live.contains(where: { CFEqual($0.element, window.element) }) {
         target.window = nil
-        target.done = false
         target.settledStreak = 0
         target.restingStreak = 0
         target.lastFrame = nil
@@ -118,12 +120,25 @@ public final class LayoutRestorer {
     }
   }
 
+  private var everyWindowIsAccountedForAsNormal: Bool {
+    targets.allSatisfy { $0.window != nil } &&
+      targets.filter { !$0.snapshot.isFullScreen }.allSatisfy { $0.done }
+  }
+
   private func keepFullScreenOnItsDisplay(_ target: Target, _ window: AppWindow) {
     let displayBounds = target.snapshot.frame.rect
     let isOnItsDisplay = displayBounds.contains(CGPoint(x: window.frame.midX, y: window.frame.midY))
+    if window.isFullScreen && isOnItsDisplay {
+      target.done = true
+      return
+    }
+    guard everyWindowIsAccountedForAsNormal else {
+      settleOntoItsDisplayAsNormalWindow(window, displayBounds: displayBounds)
+      return
+    }
     let stopRelocating = target.fullScreenRelocateTries >= maxFullScreenRelocateTries
     if window.isFullScreen {
-      if isOnItsDisplay || stopRelocating {
+      if stopRelocating {
         target.done = true
       } else {
         target.fullScreenRelocateTries += 1
@@ -135,6 +150,14 @@ public final class LayoutRestorer {
       window.setFullScreen(true)
     } else {
       target.fullScreenRelocateTries += 1
+      window.move(to: displayBounds.insetBy(dx: displayBounds.width * 0.25, dy: displayBounds.height * 0.25))
+    }
+  }
+
+  private func settleOntoItsDisplayAsNormalWindow(_ window: AppWindow, displayBounds: CGRect) {
+    if window.isFullScreen {
+      window.setFullScreen(false)
+    } else if !displayBounds.contains(CGPoint(x: window.frame.midX, y: window.frame.midY)) {
       window.move(to: displayBounds.insetBy(dx: displayBounds.width * 0.25, dy: displayBounds.height * 0.25))
     }
   }
@@ -200,13 +223,12 @@ public final class LayoutRestorer {
   }
 
   private func spawnMissingWindows(given live: [AppWindow]) {
-    let neededByApp = countByApp(targets.map { $0.appBundleID })
-    let haveByApp = countByApp(live.map { $0.appBundleID })
-    for (bundleID, needed) in neededByApp {
-      let have = haveByApp[bundleID] ?? 0
-      guard shouldSpawnWindow(for: bundleID, needed: needed, have: have) else { continue }
+    for (bundleID, appTargets) in Dictionary(grouping: targets, by: { $0.appBundleID }) {
+      guard !appIsStillWakingUp(bundleID) else { continue }
+      guard spawnPlan(for: bundleID, of: appTargets).shouldSpawnOne else { continue }
       guard let app = runningApp(bundleID) else { continue }
-      if have == 0 {
+      let openWindows = live.filter { $0.appBundleID == bundleID }.count
+      if openWindows == 0 {
         reopenMainWindow(of: app)
       } else {
         WindowSummoner.requestOneMoreWindow(from: app)
@@ -216,21 +238,15 @@ public final class LayoutRestorer {
     }
   }
 
-  private func shouldSpawnWindow(for bundleID: String, needed: Int, have: Int) -> Bool {
-    if appIsStillWakingUp(bundleID) {
-      return false
-    }
-    return spawnPlan(for: bundleID, needed: needed, have: have).shouldSpawnOne
-  }
-
-  private func spawnPlan(for bundleID: String, needed: Int, have: Int) -> WindowSpawnPlan {
-    WindowSpawnPlan(
-      neededWindows: needed,
-      currentWindows: have,
+  private func spawnPlan(for bundleID: String, of appTargets: [Target]) -> WindowSpawnPlan {
+    let alreadyHandled = appTargets.filter { $0.window != nil || $0.done }.count
+    return WindowSpawnPlan(
+      neededWindows: appTargets.count,
+      currentWindows: alreadyHandled,
       attemptsSoFar: spawnAttemptsByApp[bundleID] ?? 0,
       passesSinceLastAttempt: passesRun - (lastSpawnPassByApp[bundleID] ?? -minPassesBetweenSpawns),
       minPassesBetweenAttempts: minPassesBetweenSpawns,
-      maxAttempts: needed + 2
+      maxAttempts: appTargets.count + 2
     )
   }
 
@@ -261,14 +277,11 @@ public final class LayoutRestorer {
   }
 
   private func noAppCanProduceMoreWindows(given live: [AppWindow]) -> Bool {
-    let neededByApp = countByApp(targets.map { $0.appBundleID })
-    let haveByApp = countByApp(live.map { $0.appBundleID })
-    for (bundleID, needed) in neededByApp {
-      let have = haveByApp[bundleID] ?? 0
+    for (bundleID, appTargets) in Dictionary(grouping: targets, by: { $0.appBundleID }) {
       if appIsStillWakingUp(bundleID) {
         return false
       }
-      let plan = spawnPlan(for: bundleID, needed: needed, have: have)
+      let plan = spawnPlan(for: bundleID, of: appTargets)
       if plan.isMissingWindows, plan.hasAttemptsLeft {
         return false
       }
@@ -279,10 +292,6 @@ public final class LayoutRestorer {
   private func finish() {
     let placed = targets.filter { $0.done }.count
     whenFinished(placed, targets.count)
-  }
-
-  private func countByApp(_ bundleIDs: [String]) -> [String: Int] {
-    Dictionary(grouping: bundleIDs, by: { $0 }).mapValues { $0.count }
   }
 
   private func reopenMainWindow(of app: NSRunningApplication) {
