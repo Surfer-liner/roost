@@ -5,10 +5,6 @@ if CommandActions.wantsToRun() {
   CommandActions.runAndExit()
 }
 
-if SelfTest.wantsToRun() {
-  SelfTest.runAndExit()
-}
-
 let app = NSApplication.shared
 let roost = RoostApp()
 app.delegate = roost

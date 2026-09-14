@@ -8,7 +8,7 @@ SIGN_IDENTITY = -
 CODESIGN_FLAGS = $(if $(CODESIGN_KEYCHAIN),--keychain $(CODESIGN_KEYCHAIN),)
 DEV_KEYCHAIN = $(HOME)/Library/Keychains/roost-dev.keychain-db
 
-.PHONY: app run install dev dev-cert icon test selftest diagnose clean
+.PHONY: app run install dev dev-cert icon test clean
 
 app:
 	swift build -c release
@@ -39,14 +39,6 @@ dev:
 
 test:
 	swift test -Xswiftc -F$(TESTING_FRAMEWORKS) -Xlinker -F$(TESTING_FRAMEWORKS) -Xlinker -rpath -Xlinker $(TESTING_FRAMEWORKS) -Xlinker -rpath -Xlinker $(TESTING_LIBS)
-
-selftest: install
-	/Applications/$(APP).app/Contents/MacOS/$(APP) --selftest --report /tmp/roost-selftest.txt || true
-	cat /tmp/roost-selftest.txt
-
-diagnose: install
-	/Applications/$(APP).app/Contents/MacOS/$(APP) --diagnose --report /tmp/roost-diagnose.txt || true
-	cat /tmp/roost-diagnose.txt
 
 clean:
 	rm -rf .build build

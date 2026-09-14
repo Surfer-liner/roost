@@ -111,13 +111,8 @@ Layouts are keyed to the geometry of your display arrangement, and making a diff
 ```bash
 make app       # build Roost.app into build/
 make test      # unit tests, pure Swift, no Xcode required
-make selftest  # live drills on TextEdit and Calculator: move, minimize, close,
-               # quit and relaunch windows, fight the restorer by shoving a
-               # window away, rebuild window counts, and check every frame
 make icon      # regenerate the app icon (Roost.icns) from code
 ```
-
-`make selftest` runs through the installed app, so it uses the Accessibility permission you already granted. It only ever touches TextEdit and Calculator, and skips them if they are already running with your own windows.
 
 **Keeping Accessibility permission across rebuilds.** macOS ties the Accessibility grant to the app's code signature, and a plain rebuild re-signs with a throwaway identity, so you would have to re-grant every time. Create a stable local signing identity once and build with it:
 

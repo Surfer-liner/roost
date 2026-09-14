@@ -63,39 +63,6 @@ public enum WindowSummoner {
     }
   }
 
-  public static func dumpMenuBar(for app: NSRunningApplication) -> [String] {
-    let application = AXUIElementCreateApplication(app.processIdentifier)
-    guard let menuBar = attribute(application, kAXMenuBarAttribute) else { return ["no menu bar"] }
-    var lines: [String] = []
-    for menuBarItem in children(of: menuBar) {
-      lines.append("menu: \(string(menuBarItem, kAXTitleAttribute) ?? "?")")
-      guard let menu = submenu(of: menuBarItem) else { continue }
-      openIfEmpty(menu, byPressing: menuBarItem)
-      lines += describe(menu, indent: "    ", depth: 0)
-      AXUIElementPerformAction(menuBarItem, kAXCancelAction as CFString)
-    }
-    return lines
-  }
-
-  private static func describe(_ menu: AXUIElement, indent: String, depth: Int) -> [String] {
-    guard depth < 3 else { return [] }
-    var lines: [String] = []
-    for item in children(of: menu) {
-      let title = string(item, kAXTitleAttribute) ?? ""
-      let cmdChar = string(item, "AXMenuItemCmdChar") ?? ""
-      let mods = number(item, "AXMenuItemCmdModifiers").map(String.init) ?? "-"
-      if !cmdChar.isEmpty {
-        lines.append("\(indent)'\(title)' cmdChar=\(cmdChar) mods=\(mods)")
-      }
-      if let nested = submenu(of: item) {
-        openIfEmpty(nested, byPressing: item)
-        lines.append("\(indent)> \(title)")
-        lines += describe(nested, indent: indent + "    ", depth: depth + 1)
-      }
-    }
-    return lines
-  }
-
   private static func children(of element: AXUIElement) -> [AXUIElement] {
     var value: CFTypeRef?
     guard AXUIElementCopyAttributeValue(element, kAXChildrenAttribute as CFString, &value) == .success else { return [] }
