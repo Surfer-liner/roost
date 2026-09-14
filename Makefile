@@ -7,8 +7,10 @@ TESTING_LIBS = $(DEVELOPER_DIR)/Library/Developer/usr/lib
 SIGN_IDENTITY = -
 CODESIGN_FLAGS = $(if $(CODESIGN_KEYCHAIN),--keychain $(CODESIGN_KEYCHAIN),)
 DEV_KEYCHAIN = $(HOME)/Library/Keychains/roost-dev.keychain-db
+VERSION = $(shell /usr/libexec/PlistBuddy -c "Print CFBundleShortVersionString" Resources/Info.plist)
+DMG = build/Roost-$(VERSION).dmg
 
-.PHONY: app run install dev dev-cert icon test clean
+.PHONY: app run install dev dev-cert icon dmg test clean
 
 app:
 	swift build -c release
@@ -36,6 +38,15 @@ dev-cert:
 
 dev:
 	$(MAKE) install SIGN_IDENTITY="Roost Local Dev" CODESIGN_KEYCHAIN="$(DEV_KEYCHAIN)"
+
+dmg: app
+	rm -rf build/dmg && mkdir -p build/dmg
+	cp -R $(BUNDLE) build/dmg/$(APP).app
+	ln -s /Applications build/dmg/Applications
+	rm -f $(DMG)
+	hdiutil create -volname "$(APP)" -srcfolder build/dmg -ov -format UDZO "$(DMG)"
+	rm -rf build/dmg
+	@echo "Built $(DMG)"
 
 test:
 	swift test -Xswiftc -F$(TESTING_FRAMEWORKS) -Xlinker -F$(TESTING_FRAMEWORKS) -Xlinker -rpath -Xlinker $(TESTING_FRAMEWORKS) -Xlinker -rpath -Xlinker $(TESTING_LIBS)

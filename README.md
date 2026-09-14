@@ -40,18 +40,29 @@ No config files. No layout editor. No subscription. It lives in your menu bar an
 - **Private by design.** Layouts live in a local JSON file. Nothing ever leaves your Mac: no analytics, no network access at all.
 - **Free and MIT.** Forever.
 
-## Install
+## Download
+
+Grab the latest **Roost.dmg** from the [Releases page](https://github.com/Surfer-liner/roost/releases/latest), open it, and drag **Roost** into Applications.
+
+Roost is free and not signed with a paid Apple certificate, so the first time you open it macOS will say it "cannot verify the developer". That is expected. To get past it once:
+
+- **Right-click Roost in Applications → Open → Open**, or
+- open it once, then go to **System Settings → Privacy & Security** and click **Open Anyway**.
+
+You only do this once. After that Roost launches normally.
+
+On first launch, macOS asks for **Accessibility** access. That is the API that lets Roost read and move other apps' windows. Grant it in **System Settings → Privacy & Security → Accessibility** and you are set.
+
+Requires macOS 13 or later.
+
+## Build from source
 
 ```bash
 git clone https://github.com/Surfer-liner/roost.git && cd roost
 make install
 ```
 
-That builds Roost, drops it into /Applications, and launches it.
-
-On first run, macOS asks for **Accessibility** access. That is the API that lets Roost read and move other apps' windows. Grant it in **System Settings → Privacy & Security → Accessibility** and you are set.
-
-Requires macOS 13 or later and the Xcode Command Line Tools. Zero third-party dependencies.
+That builds Roost, drops it into /Applications, and launches it. Needs the Xcode Command Line Tools; zero third-party dependencies. To build the disk image yourself, run `make dmg`.
 
 ## Use it
 
