@@ -8,8 +8,6 @@ Unplug your MacBook. Come back. Re-dock. One click puts every window back where 
 
 ![CI](https://github.com/Surfer-liner/roost/actions/workflows/ci.yml/badge.svg) ![macOS 13+](https://img.shields.io/badge/macOS-13%2B-black?logo=apple) ![Swift](https://img.shields.io/badge/Swift-6-F05138?logo=swift&logoColor=white) ![License: MIT](https://img.shields.io/badge/License-MIT-green)
 
-![Roost restoring a window layout across two monitors](assets/demo.gif)
-
 </div>
 
 ---
