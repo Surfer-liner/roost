@@ -35,6 +35,7 @@ No config files. No layout editor. No subscription. It lives in your menu bar an
 - **Auto-restore on reconnect.** Flip one toggle and Roost fixes your windows by itself a couple of seconds after your monitors come back. Plug in the cable and they snap into place.
 - **Puts every window back and makes it stay.** Some apps re-home their own window a beat after they open, landing it on the wrong monitor. Roost keeps re-asserting each window's spot until it actually settles there, so you never click Restore three times.
 - **Rebuilds missing windows.** Quit apps get relaunched. An app running with fewer windows than you saved is asked to open the rest, even when its New Window command is buried in a submenu. Minimized windows are pulled back out of the Dock, and windows you saved minimized go right back to it.
+- **Remembers full-screen apps.** A window that was full-screen comes back full-screen on the display it belongs to, instead of being ignored or dumped into a floating window.
 - **Native and weightless.** Pure Swift and AppKit in a single small binary. Instant start, no measurable CPU while idle, no Electron.
 - **Private by design.** Layouts live in a local JSON file. Nothing ever leaves your Mac: no analytics, no network access at all.
 - **Free and MIT.** Forever.
@@ -84,8 +85,11 @@ Layouts are stored in `~/Library/Application Support/Roost/layouts.json`. It is 
 **Why do my Mac windows get scrambled when I disconnect or reconnect a monitor?**
 When displays change, macOS reflows every window onto whatever screens remain and forgets where everything was. There is no built-in "put it back". That is the entire reason Roost exists.
 
+**Does it handle full-screen apps?**
+Yes. Roost remembers which windows were full-screen and which display they were on, and puts them back into full-screen there. Moving a full-screen window to a different display is best-effort, since macOS is finicky about it; if it can't reach the exact display it still restores the window to full-screen rather than leaving it stranded.
+
 **Does it handle Spaces and multiple desktops?**
-Roost restores windows on the current Space. macOS gives apps no public API for moving windows between Spaces, so windows on other Spaces and full-screen windows are left alone.
+Roost restores windows on the current Space. macOS gives apps no public API for moving windows between regular Spaces, so windows parked on another desktop are left alone.
 
 **I closed a window, not the whole app. Will Restore bring it back?**
 Roost asks the app to open a window again, then parks it on the saved spot. No public macOS API can resurrect a specific closed document, so if the app reopens it on its own you get it back in place; otherwise you get a fresh window in the right place.

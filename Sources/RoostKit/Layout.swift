@@ -19,13 +19,15 @@ public struct WindowSnapshot: Codable, Equatable {
   public let title: String
   public let frame: FrameSnapshot
   public let isMinimized: Bool
+  public let isFullScreen: Bool
 
-  init(appBundleID: String, appName: String, title: String, frame: FrameSnapshot, isMinimized: Bool) {
+  init(appBundleID: String, appName: String, title: String, frame: FrameSnapshot, isMinimized: Bool, isFullScreen: Bool = false) {
     self.appBundleID = appBundleID
     self.appName = appName
     self.title = title
     self.frame = frame
     self.isMinimized = isMinimized
+    self.isFullScreen = isFullScreen
   }
 
   public init(from decoder: Decoder) throws {
@@ -35,6 +37,7 @@ public struct WindowSnapshot: Codable, Equatable {
     title = try values.decode(String.self, forKey: .title)
     frame = try values.decode(FrameSnapshot.self, forKey: .frame)
     isMinimized = try values.decodeIfPresent(Bool.self, forKey: .isMinimized) ?? false
+    isFullScreen = try values.decodeIfPresent(Bool.self, forKey: .isFullScreen) ?? false
   }
 }
 

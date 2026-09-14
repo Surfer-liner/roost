@@ -19,7 +19,8 @@ public enum LayoutCapturer {
       appName: window.app.localizedName ?? bundleID,
       title: window.title,
       frame: FrameSnapshot(window.frame),
-      isMinimized: window.isMinimized
+      isMinimized: window.isMinimized,
+      isFullScreen: window.isFullScreen
     )
   }
 }

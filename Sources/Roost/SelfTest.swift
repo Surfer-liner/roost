@@ -30,6 +30,8 @@ enum SelfTest {
         } else {
           lines.append("SKIP dumpmenu — \(bundleID) is not running")
         }
+      case .fstest(let bundleID):
+        lines += FullScreenTest(bundleID: bundleID).run()
       }
     }
     let report = lines.joined(separator: "\n") + "\n"
@@ -47,6 +49,7 @@ enum SelfTest {
     case counttest(String)
     case summon(String)
     case dumpmenu(String)
+    case fstest(String)
   }
 
   private static func mode() -> Mode? {
@@ -67,6 +70,9 @@ enum SelfTest {
     }
     if let flag = arguments.firstIndex(of: "--dumpmenu"), arguments.indices.contains(flag + 1) {
       return .dumpmenu(arguments[flag + 1])
+    }
+    if let flag = arguments.firstIndex(of: "--fstest"), arguments.indices.contains(flag + 1) {
+      return .fstest(arguments[flag + 1])
     }
     return nil
   }
@@ -92,7 +98,7 @@ final class Diagnostics {
       guard !windows.isEmpty else { continue }
       lines.append("app \(app.localizedName ?? "?") [\(app.bundleIdentifier ?? "?")] windows=\(windows.count) restorable=\(restorable.count)")
       for window in windows {
-        lines.append("    window title='\(window.title)' standard=\(window.isStandard) minimized=\(window.isMinimized) frame=\(compact(window.frame))")
+        lines.append("    window title='\(window.title)' standard=\(window.isStandard) minimized=\(window.isMinimized) fullscreen=\(window.isFullScreen) frame=\(compact(window.frame))")
       }
     }
     return lines
@@ -437,6 +443,58 @@ final class RelaunchTest: WindowDrills {
     }
     check("\(name): relaunched window lands on its own monitor and stays", landedRight == visibleTargets.count, "\(landedRight)/\(visibleTargets.count) settled, placed \(outcome.placed)/\(outcome.total)")
     return lines
+  }
+
+  private func compact(_ rect: CGRect) -> String {
+    "(\(Int(rect.origin.x)),\(Int(rect.origin.y)) \(Int(rect.width))x\(Int(rect.height)))"
+  }
+}
+
+final class FullScreenTest: WindowDrills {
+  private let bundleID: String
+
+  init(bundleID: String) {
+    self.bundleID = bundleID
+  }
+
+  func run() -> [String] {
+    let name = runningApp(bundleID)?.localizedName ?? bundleID
+    guard let window = restorableWindows(bundleID).first else {
+      lines.append("SKIP fullscreen test — \(name) has no window to work with")
+      return lines
+    }
+    window.setFullScreen(true)
+    guard waitUntil(10, { self.restorableWindows(self.bundleID).contains { $0.isFullScreen } }) else {
+      check("\(name): window can enter fullscreen", false, "app did not accept AXFullScreen")
+      return lines
+    }
+    spin(1.5)
+    let layout = layoutOfOnly(bundleID)
+    let savedFullScreen = layout.windows.contains { $0.isFullScreen }
+    check("\(name): capture records the fullscreen flag", savedFullScreen)
+    fact("\(name): fullscreen frame \(layout.windows.first.map { compact($0.frame.rect) } ?? "?")")
+    let savedFrame = layout.windows.first?.frame.rect ?? .zero
+    restorableWindows(bundleID).first?.setFullScreen(false)
+    _ = waitUntil(10) { !self.restorableWindows(self.bundleID).contains { $0.isFullScreen } }
+    spin(1.5)
+    displaceToAnotherDisplay(savedFrame)
+    spin(1)
+    let outcome = restoreAndWait(layout, timeout: 45)
+    spin(2)
+    let full = restorableWindows(bundleID).first { $0.isFullScreen }
+    check("\(name): restore puts the window back into fullscreen", full != nil, "placed \(outcome.placed)/\(outcome.total)")
+    if let full {
+      let onSavedDisplay = savedFrame.contains(CGPoint(x: full.frame.midX, y: full.frame.midY))
+      check("\(name): fullscreen lands back on its own display", onSavedDisplay, "ended \(compact(full.frame)) vs saved \(compact(savedFrame))")
+    }
+    return lines
+  }
+
+  private func displaceToAnotherDisplay(_ savedFrame: CGRect) {
+    guard let window = restorableWindows(bundleID).first else { return }
+    let candidates = [CGPoint(x: 200, y: 200), CGPoint(x: -1300, y: -700), CGPoint(x: 1600, y: 200), CGPoint(x: -300, y: 1100)]
+    let elsewhere = candidates.first { !savedFrame.contains($0) } ?? CGPoint(x: 200, y: 200)
+    window.move(to: CGRect(origin: elsewhere, size: CGSize(width: 700, height: 500)))
   }
 
   private func compact(_ rect: CGRect) -> String {

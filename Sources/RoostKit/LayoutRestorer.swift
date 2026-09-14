@@ -8,6 +8,7 @@ public final class LayoutRestorer {
     var restingStreak = 0
     var lastFrame: CGRect?
     var positionedWhileVisible = false
+    var fullScreenRelocateTries = 0
     var done = false
 
     init(_ snapshot: WindowSnapshot) {
@@ -34,6 +35,7 @@ public final class LayoutRestorer {
   private let maxPasses = 60
   private let settleStreakNeeded = 2
   private let restingStreakBeforeAccepting = 5
+  private let maxFullScreenRelocateTries = 4
   private let minPassesBetweenSpawns = 3
   private let freshLaunchGracePasses = 12
   private let stagnantPassesBeforeGivingUp = 20
@@ -106,7 +108,9 @@ public final class LayoutRestorer {
   private func placeMatchedTargets() {
     for target in targets where !target.done {
       guard let window = target.window else { continue }
-      if target.snapshot.isMinimized {
+      if target.snapshot.isFullScreen {
+        keepFullScreenOnItsDisplay(target, window)
+      } else if target.snapshot.isMinimized {
         keepMinimizedWindowParked(target, window)
       } else {
         keepVisibleWindowHome(target, window)
@@ -114,7 +118,34 @@ public final class LayoutRestorer {
     }
   }
 
+  private func keepFullScreenOnItsDisplay(_ target: Target, _ window: AppWindow) {
+    let displayBounds = target.snapshot.frame.rect
+    let isOnItsDisplay = displayBounds.contains(CGPoint(x: window.frame.midX, y: window.frame.midY))
+    let stopRelocating = target.fullScreenRelocateTries >= maxFullScreenRelocateTries
+    if window.isFullScreen {
+      if isOnItsDisplay || stopRelocating {
+        target.done = true
+      } else {
+        target.fullScreenRelocateTries += 1
+        window.setFullScreen(false)
+      }
+      return
+    }
+    if isOnItsDisplay || stopRelocating {
+      window.setFullScreen(true)
+    } else {
+      target.fullScreenRelocateTries += 1
+      window.move(to: displayBounds.insetBy(dx: displayBounds.width * 0.25, dy: displayBounds.height * 0.25))
+    }
+  }
+
   private func keepVisibleWindowHome(_ target: Target, _ window: AppWindow) {
+    if window.isFullScreen {
+      window.setFullScreen(false)
+      target.settledStreak = 0
+      target.restingStreak = 0
+      return
+    }
     if window.app.isHidden {
       window.app.unhide()
       target.settledStreak = 0

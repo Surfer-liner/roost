@@ -26,10 +26,11 @@ public struct AppWindow: MatchableWindow {
   }
 
   public var isRestorable: Bool {
-    if isMinimized {
-      return true
-    }
-    return isStandard && !isFullScreen
+    isStandard || isMinimized
+  }
+
+  public func setFullScreen(_ fullScreen: Bool) {
+    AXUIElementSetAttributeValue(element, "AXFullScreen" as CFString, fullScreen ? kCFBooleanTrue : kCFBooleanFalse)
   }
 
   public var frame: CGRect {
