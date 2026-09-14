@@ -33,7 +33,8 @@ No config files. No layout editor. No subscription. A bird lives in your menu ba
 
 - **A separate layout for every display setup.** Roost fingerprints your monitor arrangement. Triple-head at the office, ultrawide at home, bare laptop in a café — each setup remembers its own layout, and Restore always picks the right one.
 - **Auto-restore.** Flip one toggle and Roost fixes your windows by itself a couple of seconds after your monitors reconnect. Plug in the cable, watch the windows fly.
-- **Reopens what's missing.** Quit apps get relaunched. Apps left running with zero windows get poked until a window shows up. Minimized windows are pulled out of the Dock — and windows you saved minimized go right back to it.
+- **Puts every window back and makes it stay.** Some apps (Telegram, JetBrains IDEs and other Electron/Java apps) re-home their own window a beat after they open, landing it on the wrong monitor. Roost keeps re-asserting each window's spot until it actually settles there — no more clicking Restore three times.
+- **Reopens what's missing.** Quit apps get relaunched. An app running with fewer windows than you saved gets nudged to open the rest. Minimized windows are pulled out of the Dock — and windows you saved minimized go right back to it.
 - **Native and weightless.** Pure Swift and AppKit, a single tiny binary. Instant start, zero CPU while idle, no Electron.
 - **Private by design.** Layouts live in a local JSON file. Nothing ever leaves your Mac — no analytics, no network access at all.
 - **Free and MIT.** Forever.
@@ -92,11 +93,18 @@ Check that Roost is enabled in System Settings → Privacy & Security → Access
 make app       # build Roost.app into build/
 make test      # unit tests — pure Swift, no Xcode required
 make selftest  # live drills: Roost opens TextEdit and Calculator, scrambles,
-               # minimizes, closes and quits their windows, then restores
-               # everything and checks every frame landed where it should
+               # minimizes, closes and quits their windows, fights the restorer
+               # by shoving a window away, then checks every frame landed home
 ```
 
 `make selftest` runs through the installed app, so it uses the Accessibility permission you already granted. It only ever touches TextEdit and Calculator, and it skips them entirely if they're already running with your stuff.
+
+**Keeping Accessibility permission across rebuilds.** macOS ties the Accessibility grant to the app's code signature, and a plain rebuild re-signs with a throwaway identity — so you'd have to re-grant every time. To avoid that, create a stable local signing identity once and build with it:
+
+```bash
+make dev-cert  # one time: creates a self-signed "Roost Local Dev" identity
+make dev       # build + install signed with it; grant Accessibility once, forever
+```
 
 ## Roadmap
 

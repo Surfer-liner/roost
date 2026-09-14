@@ -4,8 +4,11 @@ BINARY = .build/release/$(APP)
 DEVELOPER_DIR = $(shell xcode-select -p)
 TESTING_FRAMEWORKS = $(DEVELOPER_DIR)/Library/Developer/Frameworks
 TESTING_LIBS = $(DEVELOPER_DIR)/Library/Developer/usr/lib
+SIGN_IDENTITY = -
+CODESIGN_FLAGS = $(if $(CODESIGN_KEYCHAIN),--keychain $(CODESIGN_KEYCHAIN),)
+DEV_KEYCHAIN = $(HOME)/Library/Keychains/roost-dev.keychain-db
 
-.PHONY: app run install test selftest clean
+.PHONY: app run install dev dev-cert test selftest diagnose clean
 
 app:
 	swift build -c release
@@ -13,7 +16,7 @@ app:
 	mkdir -p $(BUNDLE)/Contents/MacOS
 	cp $(BINARY) $(BUNDLE)/Contents/MacOS/$(APP)
 	cp Resources/Info.plist $(BUNDLE)/Contents/Info.plist
-	codesign --force --sign - $(BUNDLE)
+	codesign --force --sign "$(SIGN_IDENTITY)" $(CODESIGN_FLAGS) $(BUNDLE)
 
 run: app
 	open $(BUNDLE)
@@ -23,12 +26,22 @@ install: app
 	cp -R $(BUNDLE) /Applications/
 	open /Applications/$(APP).app
 
+dev-cert:
+	./scripts/create-dev-cert.sh
+
+dev:
+	$(MAKE) install SIGN_IDENTITY="Roost Local Dev" CODESIGN_KEYCHAIN="$(DEV_KEYCHAIN)"
+
 test:
 	swift test -Xswiftc -F$(TESTING_FRAMEWORKS) -Xlinker -F$(TESTING_FRAMEWORKS) -Xlinker -rpath -Xlinker $(TESTING_FRAMEWORKS) -Xlinker -rpath -Xlinker $(TESTING_LIBS)
 
 selftest: install
-	open -n -W /Applications/$(APP).app --args --selftest /tmp/roost-selftest.txt
+	/Applications/$(APP).app/Contents/MacOS/$(APP) --selftest --report /tmp/roost-selftest.txt || true
 	cat /tmp/roost-selftest.txt
+
+diagnose: install
+	/Applications/$(APP).app/Contents/MacOS/$(APP) --diagnose --report /tmp/roost-diagnose.txt || true
+	cat /tmp/roost-diagnose.txt
 
 clean:
 	rm -rf .build build
