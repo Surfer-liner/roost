@@ -49,8 +49,31 @@ import Testing
     try "this is not json".write(to: fileURL, atomically: true, encoding: .utf8)
     let store = LayoutStore(fileURL: fileURL)
     #expect(store.layout(for: "desk") == nil)
-    store.save(sampleLayout(fingerprint: "desk"))
+    #expect(store.save(sampleLayout(fingerprint: "desk")))
     #expect(LayoutStore(fileURL: fileURL).layout(for: "desk") != nil)
+  }
+
+  @Test func oneCorruptEntryDoesNotWipeTheHealthyOnes() throws {
+    let mixed = """
+    {
+      "good": {"displayFingerprint":"good","savedAt":"2026-09-14T10:00:00Z","windows":[
+        {"appBundleID":"com.apple.Safari","appName":"Safari","title":"News",
+         "frame":{"x":10,"y":20,"width":800,"height":600},"isMinimized":false}]},
+      "broken": {"displayFingerprint":"broken","savedAt":"not-a-date","windows":"garbage"}
+    }
+    """
+    try mixed.write(to: fileURL, atomically: true, encoding: .utf8)
+    let store = LayoutStore(fileURL: fileURL)
+    #expect(store.layout(for: "good") != nil)
+    #expect(store.layout(for: "broken") == nil)
+  }
+
+  @Test func savingDoesNotClobberEntriesAddedByAnotherWriter() {
+    LayoutStore(fileURL: fileURL).save(sampleLayout(fingerprint: "office"))
+    LayoutStore(fileURL: fileURL).save(sampleLayout(fingerprint: "home"))
+    let reopened = LayoutStore(fileURL: fileURL)
+    #expect(reopened.layout(for: "office") != nil)
+    #expect(reopened.layout(for: "home") != nil)
   }
 
   private func sampleLayout(fingerprint: String) -> Layout {

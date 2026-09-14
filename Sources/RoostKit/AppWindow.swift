@@ -21,8 +21,15 @@ public struct AppWindow: MatchableWindow {
     bool(kAXMinimizedAttribute)
   }
 
+  public var isFullScreen: Bool {
+    bool("AXFullScreen")
+  }
+
   public var isRestorable: Bool {
-    isStandard || isMinimized
+    if isMinimized {
+      return true
+    }
+    return isStandard && !isFullScreen
   }
 
   public var frame: CGRect {

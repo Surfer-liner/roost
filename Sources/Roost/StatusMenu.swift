@@ -73,13 +73,14 @@ final class StatusMenu: NSObject, NSMenuDelegate {
 
   @objc private func saveCurrentLayout() {
     guard ensureAccessibilityAccess() else { return }
+    guard !NSScreen.screens.isEmpty else { return }
     let layout = LayoutCapturer.captureCurrentLayout()
-    store.save(layout)
-    flash("✓ \(layout.windows.count)")
+    flash(store.save(layout) ? "Saved \(layout.windows.count)" : "Save failed")
   }
 
   @objc private func restoreSavedLayout() {
     guard ensureAccessibilityAccess() else { return }
+    guard !NSScreen.screens.isEmpty else { return }
     guard let layout = store.layout(for: DisplayFingerprint.current()) else {
       explainThereIsNothingToRestore()
       return
@@ -93,10 +94,14 @@ final class StatusMenu: NSObject, NSMenuDelegate {
 
   @objc private func toggleLaunchAtLogin() {
     let roost = SMAppService.mainApp
-    if roost.status == .enabled {
-      try? roost.unregister()
-    } else {
-      try? roost.register()
+    do {
+      if roost.status == .enabled {
+        try roost.unregister()
+      } else {
+        try roost.register()
+      }
+    } catch {
+      explainLoginItemFailed()
     }
   }
 
@@ -119,7 +124,7 @@ final class StatusMenu: NSObject, NSMenuDelegate {
     guard restorer == nil else { return }
     restorer = LayoutRestorer(layout: layout) { [weak self] placed, saved in
       self?.restorer = nil
-      self?.flash(placed == saved ? "✓ \(saved)" : "✓ \(placed)/\(saved)")
+      self?.flash(placed == saved ? "Restored \(saved)" : "Restored \(placed)/\(saved)")
     }
     restorer?.restore()
   }
@@ -177,6 +182,14 @@ final class StatusMenu: NSObject, NSMenuDelegate {
     let alert = NSAlert()
     alert.messageText = "Nothing saved for this display setup"
     alert.informativeText = "Arrange your windows the way you like them, then click Save Layout. Roost keeps a separate layout for every display setup."
+    alert.runModal()
+  }
+
+  private func explainLoginItemFailed() {
+    NSApp.activate(ignoringOtherApps: true)
+    let alert = NSAlert()
+    alert.messageText = "Could not change Launch at Login"
+    alert.informativeText = "macOS refused the change. This usually means Roost is not running from /Applications. Move Roost to your Applications folder and try again."
     alert.runModal()
   }
 }

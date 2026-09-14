@@ -5,6 +5,8 @@ public final class LayoutRestorer {
     let snapshot: WindowSnapshot
     var window: AppWindow?
     var settledStreak = 0
+    var restingStreak = 0
+    var lastFrame: CGRect?
     var positionedWhileVisible = false
     var done = false
 
@@ -31,6 +33,7 @@ public final class LayoutRestorer {
   private let placementInterval = 0.4
   private let maxPasses = 60
   private let settleStreakNeeded = 2
+  private let restingStreakBeforeAccepting = 5
   private let minPassesBetweenSpawns = 3
   private let freshLaunchGracePasses = 12
   private let stagnantPassesBeforeGivingUp = 20
@@ -57,12 +60,13 @@ public final class LayoutRestorer {
 
   private func runPlacementPass() {
     passesRun += 1
-    forgetWindowsThatVanished()
-    matchFreeTargetsToFreeWindows()
+    let live = liveWindows()
+    forgetWindowsThatVanished(among: live)
+    matchFreeTargetsToFreeWindows(among: live)
     placeMatchedTargets()
-    spawnMissingWindows()
-    trackProgress()
-    if shouldStop() {
+    spawnMissingWindows(given: live)
+    trackProgress(given: live)
+    if shouldStop(given: live) {
       finish()
       return
     }
@@ -73,22 +77,23 @@ public final class LayoutRestorer {
     WindowCatalog.allWindows().filter { $0.isRestorable }
   }
 
-  private func forgetWindowsThatVanished() {
-    let live = liveWindows()
+  private func forgetWindowsThatVanished(among live: [AppWindow]) {
     for target in targets {
       guard let window = target.window else { continue }
       if !live.contains(where: { CFEqual($0.element, window.element) }) {
         target.window = nil
         target.done = false
         target.settledStreak = 0
+        target.restingStreak = 0
+        target.lastFrame = nil
         target.positionedWhileVisible = false
       }
     }
   }
 
-  private func matchFreeTargetsToFreeWindows() {
+  private func matchFreeTargetsToFreeWindows(among live: [AppWindow]) {
     let claimed = targets.compactMap { $0.window?.element }
-    let freeWindows = liveWindows().filter { candidate in
+    let freeWindows = live.filter { candidate in
       !claimed.contains { CFEqual($0, candidate.element) }
     }
     let freeTargets = targets.filter { $0.window == nil }
@@ -113,23 +118,37 @@ public final class LayoutRestorer {
     if window.app.isHidden {
       window.app.unhide()
       target.settledStreak = 0
+      target.restingStreak = 0
       return
     }
     if window.isMinimized {
       window.unminimize()
       target.settledStreak = 0
+      target.restingStreak = 0
       return
     }
     let home = target.snapshot.frame.rect
-    if Geometry.isSettled(window.frame, at: home) {
+    let current = window.frame
+    if Geometry.isSettled(current, at: home) {
       target.settledStreak += 1
-    } else {
-      window.move(to: home)
-      target.settledStreak = 0
+      target.restingStreak = 0
+      if target.settledStreak >= settleStreakNeeded {
+        target.done = true
+      }
+      target.lastFrame = current
+      return
     }
-    if target.settledStreak >= settleStreakNeeded {
-      target.done = true
+    target.settledStreak = 0
+    if let last = target.lastFrame, Geometry.isSettled(current, at: last, positionTolerance: 2, sizeTolerance: 2) {
+      target.restingStreak += 1
+      if target.restingStreak >= restingStreakBeforeAccepting {
+        target.done = true
+      }
+      return
     }
+    target.restingStreak = 0
+    window.move(to: home)
+    target.lastFrame = window.frame
   }
 
   private func keepMinimizedWindowParked(_ target: Target, _ window: AppWindow) {
@@ -149,9 +168,9 @@ public final class LayoutRestorer {
     }
   }
 
-  private func spawnMissingWindows() {
+  private func spawnMissingWindows(given live: [AppWindow]) {
     let neededByApp = countByApp(targets.map { $0.appBundleID })
-    let haveByApp = countByApp(liveWindows().map { $0.appBundleID })
+    let haveByApp = countByApp(live.map { $0.appBundleID })
     for (bundleID, needed) in neededByApp {
       let have = haveByApp[bundleID] ?? 0
       guard shouldSpawnWindow(for: bundleID, needed: needed, have: have) else { continue }
@@ -188,9 +207,9 @@ public final class LayoutRestorer {
     !appsRunningBeforeRestore.contains(bundleID) && passesRun < freshLaunchGracePasses
   }
 
-  private func trackProgress() {
+  private func trackProgress(given live: [AppWindow]) {
     let doneNow = targets.filter { $0.done }.count
-    let windowsNow = liveWindows().count
+    let windowsNow = live.count
     if doneNow == lastDoneCount && windowsNow == lastWindowCount {
       stagnantPasses += 1
     } else {
@@ -200,26 +219,26 @@ public final class LayoutRestorer {
     lastWindowCount = windowsNow
   }
 
-  private func shouldStop() -> Bool {
+  private func shouldStop(given live: [AppWindow]) -> Bool {
     if targets.allSatisfy({ $0.done }) {
       return true
     }
     if passesRun >= maxPasses {
       return true
     }
-    return stagnantPasses >= stagnantPassesBeforeGivingUp && noAppCanProduceMoreWindows()
+    return stagnantPasses >= stagnantPassesBeforeGivingUp && noAppCanProduceMoreWindows(given: live)
   }
 
-  private func noAppCanProduceMoreWindows() -> Bool {
+  private func noAppCanProduceMoreWindows(given live: [AppWindow]) -> Bool {
     let neededByApp = countByApp(targets.map { $0.appBundleID })
-    let haveByApp = countByApp(liveWindows().map { $0.appBundleID })
+    let haveByApp = countByApp(live.map { $0.appBundleID })
     for (bundleID, needed) in neededByApp {
       let have = haveByApp[bundleID] ?? 0
       if appIsStillWakingUp(bundleID) {
         return false
       }
-      if spawnPlan(for: bundleID, needed: needed, have: have).isMissingWindows,
-         spawnPlan(for: bundleID, needed: needed, have: have).hasAttemptsLeft {
+      let plan = spawnPlan(for: bundleID, needed: needed, have: have)
+      if plan.isMissingWindows, plan.hasAttemptsLeft {
         return false
       }
     }

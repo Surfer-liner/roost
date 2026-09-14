@@ -18,8 +18,15 @@ enum CommandActions {
   }
 
   private static func saveAndExit() -> Never {
+    guard !NSScreen.screens.isEmpty else {
+      complain("No displays detected. Nothing saved.")
+      exit(1)
+    }
     let layout = LayoutCapturer.captureCurrentLayout()
-    LayoutStore().save(layout)
+    guard LayoutStore().save(layout) else {
+      complain("Could not write the layout file.")
+      exit(1)
+    }
     print("Saved \(layout.windows.count) windows for this display setup.")
     exit(0)
   }
