@@ -20,6 +20,16 @@ enum SelfTest {
         lines += Rehearsal(bundleID: bundleID).run()
       case .relaunch(let bundleID):
         lines += RelaunchTest(bundleID: bundleID).run()
+      case .counttest(let bundleID):
+        lines += CountRestoreTest(bundleID: bundleID).run()
+      case .summon(let bundleID):
+        lines += SummonTest(bundleID: bundleID).run()
+      case .dumpmenu(let bundleID):
+        if let app = NSRunningApplication.runningApplications(withBundleIdentifier: bundleID).first {
+          lines += WindowSummoner.dumpMenuBar(for: app)
+        } else {
+          lines.append("SKIP dumpmenu — \(bundleID) is not running")
+        }
       }
     }
     let report = lines.joined(separator: "\n") + "\n"
@@ -34,6 +44,9 @@ enum SelfTest {
     case drills
     case rehearse(String)
     case relaunch(String)
+    case counttest(String)
+    case summon(String)
+    case dumpmenu(String)
   }
 
   private static func mode() -> Mode? {
@@ -45,6 +58,15 @@ enum SelfTest {
     }
     if let flag = arguments.firstIndex(of: "--relaunch"), arguments.indices.contains(flag + 1) {
       return .relaunch(arguments[flag + 1])
+    }
+    if let flag = arguments.firstIndex(of: "--counttest"), arguments.indices.contains(flag + 1) {
+      return .counttest(arguments[flag + 1])
+    }
+    if let flag = arguments.firstIndex(of: "--summon"), arguments.indices.contains(flag + 1) {
+      return .summon(arguments[flag + 1])
+    }
+    if let flag = arguments.firstIndex(of: "--dumpmenu"), arguments.indices.contains(flag + 1) {
+      return .dumpmenu(arguments[flag + 1])
     }
     return nil
   }
@@ -414,6 +436,73 @@ final class RelaunchTest: WindowDrills {
       }
     }
     check("\(name): relaunched window lands on its own monitor and stays", landedRight == visibleTargets.count, "\(landedRight)/\(visibleTargets.count) settled, placed \(outcome.placed)/\(outcome.total)")
+    return lines
+  }
+
+  private func compact(_ rect: CGRect) -> String {
+    "(\(Int(rect.origin.x)),\(Int(rect.origin.y)) \(Int(rect.width))x\(Int(rect.height)))"
+  }
+}
+
+final class SummonTest: WindowDrills {
+  private let bundleID: String
+
+  init(bundleID: String) {
+    self.bundleID = bundleID
+  }
+
+  func run() -> [String] {
+    let name = runningApp(bundleID)?.localizedName ?? bundleID
+    guard let app = runningApp(bundleID) else {
+      lines.append("SKIP summon — \(bundleID) is not running")
+      return lines
+    }
+    let before = restorableWindows(bundleID).count
+    let pressed = WindowSummoner.requestOneMoreWindow(from: app)
+    fact("\(name): menu item found and pressed = \(pressed)")
+    let grew = waitUntil(8) { self.restorableWindows(self.bundleID).count > before }
+    let after = restorableWindows(bundleID).count
+    check("\(name): a fresh window can be summoned", grew, "windows \(before) → \(after)")
+    return lines
+  }
+}
+
+final class CountRestoreTest: WindowDrills {
+  private let bundleID: String
+
+  init(bundleID: String) {
+    self.bundleID = bundleID
+  }
+
+  func run() -> [String] {
+    let name = runningApp(bundleID)?.localizedName ?? bundleID
+    let startWindows = restorableWindows(bundleID)
+    guard startWindows.count >= 2 else {
+      lines.append("SKIP count test — \(name) needs at least 2 open windows (has \(startWindows.count))")
+      return lines
+    }
+    let layout = layoutOfOnly(bundleID)
+    let saved = layout.windows.count
+    fact("\(name): saved \(saved) windows")
+    for window in startWindows.dropFirst() {
+      window.close()
+    }
+    _ = waitUntil(6) { self.restorableWindows(self.bundleID).count <= 1 }
+    fact("\(name): reduced to \(restorableWindows(bundleID).count) window(s), restore must rebuild to \(saved)")
+    let outcome = restoreAndWait(layout, timeout: 60)
+    spin(2)
+    let finalCount = restorableWindows(bundleID).count
+    check("\(name): window count is rebuilt", finalCount >= saved, "ended with \(finalCount)/\(saved), placed \(outcome.placed)/\(outcome.total)")
+    var slotsCovered = 0
+    for savedWindow in layout.windows where !savedWindow.isMinimized {
+      if restorableWindows(bundleID).contains(where: { settled($0.frame, savedWindow.frame.rect) }) {
+        slotsCovered += 1
+      } else {
+        fact("    no window landed on \(compact(savedWindow.frame.rect))")
+      }
+    }
+    let visibleSlots = layout.windows.filter { !$0.isMinimized }.count
+    check("\(name): every saved slot has a window on it", slotsCovered == visibleSlots, "\(slotsCovered)/\(visibleSlots) slots covered")
     return lines
   }
 

@@ -1,6 +1,10 @@
 import AppKit
 import RoostKit
 
+if CommandActions.wantsToRun() {
+  CommandActions.runAndExit()
+}
+
 if SelfTest.wantsToRun() {
   SelfTest.runAndExit()
 }

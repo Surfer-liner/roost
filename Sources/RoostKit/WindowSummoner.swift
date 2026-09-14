@@ -1,19 +1,133 @@
 import AppKit
-import Carbon.HIToolbox
+import ApplicationServices
 
 public enum WindowSummoner {
-  private static let commandN: CGKeyCode = CGKeyCode(kVK_ANSI_N)
+  @discardableResult
+  public static func requestOneMoreWindow(from app: NSRunningApplication) -> Bool {
+    let application = AXUIElementCreateApplication(app.processIdentifier)
+    return pressNewWindowMenuItem(in: application)
+  }
 
-  public static func requestOneMoreWindow(from app: NSRunningApplication) {
-    app.activate(options: [.activateIgnoringOtherApps])
-    guard let source = CGEventSource(stateID: .combinedSessionState) else { return }
-    guard
-      let keyDown = CGEvent(keyboardEventSource: source, virtualKey: commandN, keyDown: true),
-      let keyUp = CGEvent(keyboardEventSource: source, virtualKey: commandN, keyDown: false)
-    else { return }
-    keyDown.flags = .maskCommand
-    keyUp.flags = .maskCommand
-    keyDown.postToPid(app.processIdentifier)
-    keyUp.postToPid(app.processIdentifier)
+  private static func pressNewWindowMenuItem(in application: AXUIElement) -> Bool {
+    guard let menuBar = attribute(application, kAXMenuBarAttribute) else { return false }
+    var lastOpenedMenuItem: AXUIElement?
+    for menuBarItem in children(of: menuBar) {
+      guard let menu = submenu(of: menuBarItem) else { continue }
+      openIfEmpty(menu, byPressing: menuBarItem)
+      lastOpenedMenuItem = menuBarItem
+      if let target = searchForNewWindowItem(in: menu, depth: 0) {
+        Thread.sleep(forTimeInterval: 0.05)
+        AXUIElementPerformAction(target, kAXPressAction as CFString)
+        return true
+      }
+    }
+    if let lastOpenedMenuItem {
+      AXUIElementPerformAction(lastOpenedMenuItem, kAXCancelAction as CFString)
+    }
+    return false
+  }
+
+  private static func searchForNewWindowItem(in menu: AXUIElement, depth: Int) -> AXUIElement? {
+    guard depth < 4 else { return nil }
+    for item in children(of: menu) {
+      if isBoundToCommandN(item), isEnabled(item) {
+        return item
+      }
+      if let nested = submenu(of: item) {
+        openIfEmpty(nested, byPressing: item)
+        if let found = searchForNewWindowItem(in: nested, depth: depth + 1) {
+          return found
+        }
+      }
+    }
+    return nil
+  }
+
+  private static func isBoundToCommandN(_ item: AXUIElement) -> Bool {
+    string(item, "AXMenuItemCmdChar")?.lowercased() == "n" && number(item, "AXMenuItemCmdModifiers") == 0
+  }
+
+  private static func isEnabled(_ item: AXUIElement) -> Bool {
+    boolean(item, kAXEnabledAttribute) ?? true
+  }
+
+  private static func submenu(of item: AXUIElement) -> AXUIElement? {
+    children(of: item).first { role(of: $0) == (kAXMenuRole as String) }
+  }
+
+  private static func openIfEmpty(_ menu: AXUIElement, byPressing opener: AXUIElement) {
+    guard children(of: menu).isEmpty else { return }
+    AXUIElementPerformAction(opener, kAXPressAction as CFString)
+    for _ in 0..<8 where children(of: menu).isEmpty {
+      Thread.sleep(forTimeInterval: 0.025)
+    }
+  }
+
+  public static func dumpMenuBar(for app: NSRunningApplication) -> [String] {
+    let application = AXUIElementCreateApplication(app.processIdentifier)
+    guard let menuBar = attribute(application, kAXMenuBarAttribute) else { return ["no menu bar"] }
+    var lines: [String] = []
+    for menuBarItem in children(of: menuBar) {
+      lines.append("menu: \(string(menuBarItem, kAXTitleAttribute) ?? "?")")
+      guard let menu = submenu(of: menuBarItem) else { continue }
+      openIfEmpty(menu, byPressing: menuBarItem)
+      lines += describe(menu, indent: "    ", depth: 0)
+      AXUIElementPerformAction(menuBarItem, kAXCancelAction as CFString)
+    }
+    return lines
+  }
+
+  private static func describe(_ menu: AXUIElement, indent: String, depth: Int) -> [String] {
+    guard depth < 3 else { return [] }
+    var lines: [String] = []
+    for item in children(of: menu) {
+      let title = string(item, kAXTitleAttribute) ?? ""
+      let cmdChar = string(item, "AXMenuItemCmdChar") ?? ""
+      let mods = number(item, "AXMenuItemCmdModifiers").map(String.init) ?? "-"
+      if !cmdChar.isEmpty {
+        lines.append("\(indent)'\(title)' cmdChar=\(cmdChar) mods=\(mods)")
+      }
+      if let nested = submenu(of: item) {
+        openIfEmpty(nested, byPressing: item)
+        lines.append("\(indent)> \(title)")
+        lines += describe(nested, indent: indent + "    ", depth: depth + 1)
+      }
+    }
+    return lines
+  }
+
+  private static func children(of element: AXUIElement) -> [AXUIElement] {
+    var value: CFTypeRef?
+    guard AXUIElementCopyAttributeValue(element, kAXChildrenAttribute as CFString, &value) == .success else { return [] }
+    return value as? [AXUIElement] ?? []
+  }
+
+  private static func role(of element: AXUIElement) -> String? {
+    string(element, kAXRoleAttribute)
+  }
+
+  private static func attribute(_ element: AXUIElement, _ name: String) -> AXUIElement? {
+    var value: CFTypeRef?
+    guard AXUIElementCopyAttributeValue(element, name as CFString, &value) == .success else { return nil }
+    guard let value, CFGetTypeID(value) == AXUIElementGetTypeID() else { return nil }
+    return (value as! AXUIElement)
+  }
+
+  private static func string(_ element: AXUIElement, _ name: String) -> String? {
+    var value: CFTypeRef?
+    guard AXUIElementCopyAttributeValue(element, name as CFString, &value) == .success else { return nil }
+    return value as? String
+  }
+
+  private static func number(_ element: AXUIElement, _ name: String) -> Int? {
+    var value: CFTypeRef?
+    guard AXUIElementCopyAttributeValue(element, name as CFString, &value) == .success else { return nil }
+    return (value as? NSNumber)?.intValue
+  }
+
+  private static func boolean(_ element: AXUIElement, _ name: String) -> Bool? {
+    var value: CFTypeRef?
+    guard AXUIElementCopyAttributeValue(element, name as CFString, &value) == .success else { return nil }
+    return (value as? NSNumber)?.boolValue
   }
 }
