@@ -1,4 +1,4 @@
-// swift-tools-version: 5.9
+// swift-tools-version: 6.0
 import PackageDescription
 
 let package = Package(
@@ -7,6 +7,19 @@ let package = Package(
     .macOS(.v13)
   ],
   targets: [
-    .executableTarget(name: "Roost")
+    .target(
+      name: "RoostKit",
+      swiftSettings: [.swiftLanguageMode(.v5)]
+    ),
+    .executableTarget(
+      name: "Roost",
+      dependencies: ["RoostKit"],
+      swiftSettings: [.swiftLanguageMode(.v5)]
+    ),
+    .testTarget(
+      name: "RoostKitTests",
+      dependencies: ["RoostKit"],
+      swiftSettings: [.swiftLanguageMode(.v5)]
+    )
   ]
 )

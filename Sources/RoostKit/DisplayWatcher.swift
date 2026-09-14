@@ -1,11 +1,11 @@
 import AppKit
 
-final class DisplayWatcher: NSObject {
-  var onDisplaysSettled: ((String) -> Void)?
+public final class DisplayWatcher: NSObject {
+  public var onDisplaysSettled: ((String) -> Void)?
   private var lastFingerprint = DisplayFingerprint.current()
   private var settleTimer: Timer?
 
-  override init() {
+  override public init() {
     super.init()
     NotificationCenter.default.addObserver(
       self,

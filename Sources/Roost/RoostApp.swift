@@ -1,4 +1,5 @@
 import AppKit
+import RoostKit
 
 final class RoostApp: NSObject, NSApplicationDelegate {
   private var statusMenu: StatusMenu?

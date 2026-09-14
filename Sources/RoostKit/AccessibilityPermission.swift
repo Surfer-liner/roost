@@ -1,11 +1,11 @@
 import ApplicationServices
 
-enum AccessibilityPermission {
-  static var isGranted: Bool {
+public enum AccessibilityPermission {
+  public static var isGranted: Bool {
     AXIsProcessTrusted()
   }
 
-  static func askIfNeeded() {
+  public static func askIfNeeded() {
     let promptKey = kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String
     AXIsProcessTrustedWithOptions([promptKey: true] as CFDictionary)
   }

@@ -1,34 +1,51 @@
 import AppKit
 import ApplicationServices
 
-struct AppWindow {
-  let app: NSRunningApplication
+public struct AppWindow: MatchableWindow {
+  public let app: NSRunningApplication
   let element: AXUIElement
 
-  var title: String {
+  public var appBundleID: String {
+    app.bundleIdentifier ?? ""
+  }
+
+  public var title: String {
     string(kAXTitleAttribute)
   }
 
-  var isStandard: Bool {
+  public var isStandard: Bool {
     string(kAXSubroleAttribute) == kAXStandardWindowSubrole
   }
 
-  var isMinimized: Bool {
+  public var isMinimized: Bool {
     bool(kAXMinimizedAttribute)
   }
 
-  var frame: CGRect {
+  public var isRestorable: Bool {
+    isStandard || isMinimized
+  }
+
+  public var frame: CGRect {
     CGRect(origin: point(kAXPositionAttribute), size: size(kAXSizeAttribute))
   }
 
-  func move(to target: CGRect) {
+  public func move(to target: CGRect) {
     write(point: target.origin, to: kAXPositionAttribute)
     write(size: target.size, to: kAXSizeAttribute)
     write(point: target.origin, to: kAXPositionAttribute)
   }
 
-  func unminimize() {
+  public func minimize() {
+    AXUIElementSetAttributeValue(element, kAXMinimizedAttribute as CFString, kCFBooleanTrue)
+  }
+
+  public func unminimize() {
     AXUIElementSetAttributeValue(element, kAXMinimizedAttribute as CFString, kCFBooleanFalse)
+  }
+
+  public func close() {
+    guard let button = stored(kAXCloseButtonAttribute), CFGetTypeID(button) == AXUIElementGetTypeID() else { return }
+    AXUIElementPerformAction(button as! AXUIElement, kAXPressAction as CFString)
   }
 
   private func stored(_ attribute: String) -> CFTypeRef? {

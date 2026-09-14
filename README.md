@@ -6,7 +6,7 @@
 
 Unplug your MacBook. Come back. Re-dock. One click — every window flies home.
 
-![macOS 13+](https://img.shields.io/badge/macOS-13%2B-black?logo=apple) ![Swift](https://img.shields.io/badge/Swift-5.9%2B-F05138?logo=swift&logoColor=white) ![License: MIT](https://img.shields.io/badge/License-MIT-green)
+![CI](https://github.com/Surfer-liner/roost/actions/workflows/ci.yml/badge.svg) ![macOS 13+](https://img.shields.io/badge/macOS-13%2B-black?logo=apple) ![Swift](https://img.shields.io/badge/Swift-6-F05138?logo=swift&logoColor=white) ![License: MIT](https://img.shields.io/badge/License-MIT-green)
 
 </div>
 
@@ -33,7 +33,7 @@ No config files. No layout editor. No subscription. A bird lives in your menu ba
 
 - **A separate layout for every display setup.** Roost fingerprints your monitor arrangement. Triple-head at the office, ultrawide at home, bare laptop in a café — each setup remembers its own layout, and Restore always picks the right one.
 - **Auto-restore.** Flip one toggle and Roost fixes your windows by itself a couple of seconds after your monitors reconnect. Plug in the cable, watch the windows fly.
-- **Relaunches what's missing.** Quit Slack since you saved? Restore launches it, waits for its window, puts it in place.
+- **Reopens what's missing.** Quit apps get relaunched. Apps left running with zero windows get poked until a window shows up. Minimized windows are pulled out of the Dock — and windows you saved minimized go right back to it.
 - **Native and weightless.** Pure Swift and AppKit, a single tiny binary. Instant start, zero CPU while idle, no Electron.
 - **Private by design.** Layouts live in a local JSON file. Nothing ever leaves your Mac — no analytics, no network access at all.
 - **Free and MIT.** Forever.
@@ -41,7 +41,7 @@ No config files. No layout editor. No subscription. A bird lives in your menu ba
 ## Install
 
 ```bash
-git clone https://github.com/YOU/roost.git && cd roost
+git clone https://github.com/Surfer-liner/roost.git && cd roost
 make install
 ```
 
@@ -77,11 +77,26 @@ When displays change, macOS reflows every window onto whatever screens remain �
 **Does it handle Spaces / multiple desktops?**
 Roost restores windows on the current Space. macOS doesn't offer apps a public API for moving windows between Spaces.
 
+**I closed a window, not the whole app. Will Restore bring it back?**
+Roost pokes the app until it opens a window again, then parks that window on the saved spot. The one thing no public macOS API can do is resurrect a specific closed document — if the app reopens it itself (most do on relaunch), Roost places it; otherwise you get a fresh window in the right place.
+
 **A window didn't come back.**
 A few apps speak Accessibility poorly (some Java and niche ones). Roost places everything that responds. Fullscreen windows are technically Spaces, so they're left alone.
 
 **Restore does nothing.**
 Check that Roost is enabled in System Settings → Privacy & Security → Accessibility. If you rebuilt from source, macOS may want the permission re-granted — toggle it off and on.
+
+## Development
+
+```bash
+make app       # build Roost.app into build/
+make test      # unit tests — pure Swift, no Xcode required
+make selftest  # live drills: Roost opens TextEdit and Calculator, scrambles,
+               # minimizes, closes and quits their windows, then restores
+               # everything and checks every frame landed where it should
+```
+
+`make selftest` runs through the installed app, so it uses the Accessibility permission you already granted. It only ever touches TextEdit and Calculator, and it skips them entirely if they're already running with your stuff.
 
 ## Roadmap
 

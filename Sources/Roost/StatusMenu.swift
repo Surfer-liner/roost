@@ -1,4 +1,5 @@
 import AppKit
+import RoostKit
 import ServiceManagement
 
 final class StatusMenu: NSObject, NSMenuDelegate {

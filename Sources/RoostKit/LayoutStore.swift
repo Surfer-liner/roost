@@ -1,19 +1,23 @@
 import Foundation
 
-final class LayoutStore {
+public final class LayoutStore {
   private let fileURL: URL
   private var layoutsByFingerprint: [String: Layout]
 
-  init() {
-    fileURL = Self.defaultFileURL()
+  public convenience init() {
+    self.init(fileURL: LayoutStore.defaultFileURL())
+  }
+
+  init(fileURL: URL) {
+    self.fileURL = fileURL
     layoutsByFingerprint = Self.readLayouts(at: fileURL)
   }
 
-  func layout(for fingerprint: String) -> Layout? {
+  public func layout(for fingerprint: String) -> Layout? {
     layoutsByFingerprint[fingerprint]
   }
 
-  func save(_ layout: Layout) {
+  public func save(_ layout: Layout) {
     layoutsByFingerprint[layout.displayFingerprint] = layout
     persist()
   }

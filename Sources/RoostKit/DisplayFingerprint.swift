@@ -1,7 +1,7 @@
 import AppKit
 
-enum DisplayFingerprint {
-  static func current() -> String {
+public enum DisplayFingerprint {
+  public static func current() -> String {
     NSScreen.screens
       .map(describe)
       .sorted()
