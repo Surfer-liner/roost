@@ -13,15 +13,19 @@ final class StatusMenu: NSObject, NSMenuDelegate {
 
   override init() {
     super.init()
-    showBirdInMenuBar()
+    showIconInMenuBar()
     statusItem.menu = buildMenu()
     watchForDisplayChanges()
   }
 
-  private func showBirdInMenuBar() {
-    let bird = NSImage(systemSymbolName: "bird", accessibilityDescription: "Roost")
-    let fallback = NSImage(systemSymbolName: "macwindow.on.rectangle", accessibilityDescription: "Roost")
-    statusItem.button?.image = bird ?? fallback
+  private func showIconInMenuBar() {
+    let image = NSImage(size: NSSize(width: 18, height: 16), flipped: false) { rect in
+      guard let context = NSGraphicsContext.current?.cgContext else { return false }
+      IconArtwork.drawMenuBarGlyph(in: context, bounds: rect)
+      return true
+    }
+    image.isTemplate = true
+    statusItem.button?.image = image
     statusItem.button?.imagePosition = .imageLeading
   }
 

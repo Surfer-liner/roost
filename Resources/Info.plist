@@ -6,6 +6,8 @@
   <string>Roost</string>
   <key>CFBundleExecutable</key>
   <string>Roost</string>
+  <key>CFBundleIconFile</key>
+  <string>Roost</string>
   <key>CFBundleIdentifier</key>
   <string>app.roost.Roost</string>
   <key>CFBundleInfoDictionaryVersion</key>

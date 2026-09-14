@@ -16,6 +16,11 @@ let package = Package(
       dependencies: ["RoostKit"],
       swiftSettings: [.swiftLanguageMode(.v5)]
     ),
+    .executableTarget(
+      name: "IconTool",
+      dependencies: ["RoostKit"],
+      swiftSettings: [.swiftLanguageMode(.v5)]
+    ),
     .testTarget(
       name: "RoostKitTests",
       dependencies: ["RoostKit"],

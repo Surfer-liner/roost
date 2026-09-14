@@ -8,15 +8,20 @@ SIGN_IDENTITY = -
 CODESIGN_FLAGS = $(if $(CODESIGN_KEYCHAIN),--keychain $(CODESIGN_KEYCHAIN),)
 DEV_KEYCHAIN = $(HOME)/Library/Keychains/roost-dev.keychain-db
 
-.PHONY: app run install dev dev-cert test selftest diagnose clean
+.PHONY: app run install dev dev-cert icon test selftest diagnose clean
 
 app:
 	swift build -c release
 	rm -rf $(BUNDLE)
-	mkdir -p $(BUNDLE)/Contents/MacOS
+	mkdir -p $(BUNDLE)/Contents/MacOS $(BUNDLE)/Contents/Resources
 	cp $(BINARY) $(BUNDLE)/Contents/MacOS/$(APP)
 	cp Resources/Info.plist $(BUNDLE)/Contents/Info.plist
+	cp Resources/Roost.icns $(BUNDLE)/Contents/Resources/Roost.icns
 	codesign --force --sign "$(SIGN_IDENTITY)" $(CODESIGN_FLAGS) $(BUNDLE)
+
+icon:
+	swift run IconTool build/Roost.iconset
+	iconutil -c icns build/Roost.iconset -o Resources/Roost.icns
 
 run: app
 	open $(BUNDLE)
