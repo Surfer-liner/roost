@@ -6,6 +6,7 @@ private struct FakeWindow: MatchableWindow, Equatable {
   let appBundleID: String
   let title: String
   let badge: Int
+  var frame: CGRect = .zero
 }
 
 @Suite struct WindowMatchmakerTests {
@@ -24,6 +25,19 @@ private struct FakeWindow: MatchableWindow, Equatable {
     let matches = WindowMatchmaker.pair(snapshots, with: windows)
     #expect(badge(matches, forTitle: "Old news") == 1)
     #expect(badge(matches, forTitle: "Old mail") == 2)
+  }
+
+  @Test func driftedTitlesPreferTheWindowClosestToWhereTheSnapshotLived() {
+    let leftMonitor = CGRect(x: -1080, y: 0, width: 600, height: 400)
+    let rightMonitor = CGRect(x: 1900, y: 0, width: 600, height: 400)
+    let snapshots = [snapshot("terminal", "htop", at: leftMonitor), snapshot("terminal", "build", at: rightMonitor)]
+    let windows = [
+      FakeWindow(appBundleID: "terminal", title: "zsh", badge: 1, frame: rightMonitor),
+      FakeWindow(appBundleID: "terminal", title: "zsh", badge: 2, frame: leftMonitor),
+    ]
+    let matches = WindowMatchmaker.pair(snapshots, with: windows)
+    #expect(badge(matches, forTitle: "htop") == 2)
+    #expect(badge(matches, forTitle: "build") == 1)
   }
 
   @Test func exactMatchesAreTakenBeforeOrderFallbackGrabsThem() {
@@ -64,8 +78,8 @@ private struct FakeWindow: MatchableWindow, Equatable {
     #expect(Set(matches.map { $0.window.badge }) == [1, 2])
   }
 
-  private func snapshot(_ bundleID: String, _ title: String) -> WindowSnapshot {
-    WindowSnapshot(appBundleID: bundleID, appName: bundleID, title: title, frame: FrameSnapshot(.zero), isMinimized: false)
+  private func snapshot(_ bundleID: String, _ title: String, at frame: CGRect = .zero) -> WindowSnapshot {
+    WindowSnapshot(appBundleID: bundleID, appName: bundleID, title: title, frame: FrameSnapshot(frame), isMinimized: false)
   }
 
   private func window(_ bundleID: String, _ title: String, _ badge: Int) -> FakeWindow {

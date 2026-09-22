@@ -1,15 +1,9 @@
-import AppKit
-
 public enum DisplayFingerprint {
   public static func current() -> String {
-    NSScreen.screens
-      .map(describe)
-      .sorted()
-      .joined(separator: " + ")
+    fingerprint(of: DisplayGeometry.currentDisplays())
   }
 
-  private static func describe(_ screen: NSScreen) -> String {
-    let frame = screen.frame
-    return "\(Int(frame.width))x\(Int(frame.height))@\(Int(frame.origin.x)),\(Int(frame.origin.y))"
+  static func fingerprint(of displays: [DisplaySnapshot]) -> String {
+    displays.map { $0.key }.sorted().joined(separator: " + ")
   }
 }

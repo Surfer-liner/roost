@@ -32,9 +32,11 @@ No config files. No layout editor. No subscription. It lives in your menu bar an
 ## The details that matter
 
 - **A separate layout for every display setup.** Roost fingerprints your monitor arrangement. Triple-head at the office, ultrawide at home, bare laptop in a cafe: each setup remembers its own layout, and Restore always picks the right one.
-- **Auto-restore on reconnect.** Flip one toggle and Roost fixes your windows by itself a couple of seconds after your monitors come back. Plug in the cable and they snap into place.
+- **Auto-restore on reconnect and at launch.** Flip one toggle and Roost fixes your windows by itself a couple of seconds after your monitors come back, and again when it starts after a reboot. Plug in the cable and they snap into place.
+- **Survives macOS shuffling your monitors.** After a reboot or a re-dock, macOS often hands the same displays new coordinates. Roost remembers which display each window lived on and where inside it, so the layout still matches and every window lands on the right screen.
 - **Puts every window back and makes it stay.** Some apps re-home their own window a beat after they open, landing it on the wrong monitor. Roost keeps re-asserting each window's spot until it actually settles there, so you never click Restore three times.
 - **Rebuilds missing windows.** Quit apps get relaunched. An app running with fewer windows than you saved is asked to open the rest, even when its New Window command is buried in a submenu. Minimized windows are pulled back out of the Dock, and windows you saved minimized go right back to it.
+- **Patient after a reboot.** An IDE that takes a minute to show its first window is waited for, not written off.
 - **Remembers full-screen apps.** A window that was full-screen comes back full-screen on the display it belongs to, instead of being ignored or dumped into a floating window.
 - **Native and weightless.** Pure Swift and AppKit in a single small binary. Instant start, no measurable CPU while idle, no Electron.
 - **Private by design.** Layouts live in a local JSON file. Nothing ever leaves your Mac: no analytics, no network access at all.
@@ -70,7 +72,7 @@ That builds Roost, drops it into /Applications, and launches it. Needs the Xcode
 2. Open the Roost menu and click **Save Layout**.
 3. Live your life: unplug, present, travel, come back, dock.
 4. Open the Roost menu and click **Restore Layout**.
-5. Optional: flip **Auto-Restore on Reconnect** and skip step 4 forever.
+5. Optional: flip **Auto-Restore on Reconnect & Launch** and skip step 4 forever.
 
 Save once per display setup. Roost keeps them all.
 
@@ -85,7 +87,7 @@ Roost also answers two flags, so you can wire it to a hotkey tool or a script:
 
 ## How it works
 
-Roost uses the macOS Accessibility API to read and set the exact frame of every standard window on every connected display. Each saved layout is keyed to a fingerprint of your display arrangement (resolutions and relative positions), so your desk layout and your laptop-only layout never overwrite each other.
+Roost uses the macOS Accessibility API to read and set the exact frame of every standard window on every connected display. Each saved layout is keyed to the set of displays attached, identified by size and by which side of the main screen each one sits on, and every window is stored as an offset inside its own display. macOS likes to hand displays new coordinates after a reboot or a re-dock; Roost does not care, it puts each window back on the same display at the same offset. Your desk layout and your laptop-only layout never overwrite each other.
 
 On restore, windows are matched to the saved layout per app, by title first and then by order for titles that drift. Missing apps are relaunched, apps short a window are asked to open one, and each window is re-placed until it holds its position, all within a few seconds.
 

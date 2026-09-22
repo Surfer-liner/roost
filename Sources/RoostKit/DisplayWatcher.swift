@@ -2,7 +2,7 @@ import AppKit
 
 public final class DisplayWatcher: NSObject {
   public var onDisplaysSettled: ((String) -> Void)?
-  private var lastFingerprint = DisplayFingerprint.current()
+  private var lastFingerprint: String?
   private var settleTimer: Timer?
 
   override public init() {
@@ -13,6 +13,7 @@ public final class DisplayWatcher: NSObject {
       name: NSApplication.didChangeScreenParametersNotification,
       object: nil
     )
+    waitForDisplaysToSettle()
   }
 
   deinit {
@@ -20,9 +21,13 @@ public final class DisplayWatcher: NSObject {
   }
 
   @objc private func displaysChanged() {
+    waitForDisplaysToSettle()
+  }
+
+  private func waitForDisplaysToSettle() {
     settleTimer?.invalidate()
     settleTimer = Timer.scheduledTimer(
-      timeInterval: 2,
+      timeInterval: 2.5,
       target: self,
       selector: #selector(displaysSettled),
       userInfo: nil,

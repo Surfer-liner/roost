@@ -1,6 +1,9 @@
+import CoreGraphics
+
 protocol MatchableWindow {
   var appBundleID: String { get }
   var title: String { get }
+  var frame: CGRect { get }
 }
 
 struct WindowMatch<Window: MatchableWindow> {
@@ -36,9 +39,14 @@ enum WindowMatchmaker {
       }
     }
     for snapshot in driftedTitles {
-      if free.isEmpty { break }
-      matches.append(WindowMatch(snapshot: snapshot, window: free.removeFirst()))
+      guard let nearest = free.indices.min(by: { distance(free[$0], snapshot) < distance(free[$1], snapshot) }) else { break }
+      matches.append(WindowMatch(snapshot: snapshot, window: free.remove(at: nearest)))
     }
     return matches
+  }
+
+  private static func distance<Window: MatchableWindow>(_ window: Window, _ snapshot: WindowSnapshot) -> CGFloat {
+    let home = snapshot.frame.rect
+    return hypot(window.frame.midX - home.midX, window.frame.midY - home.midY)
   }
 }

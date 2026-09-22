@@ -76,6 +76,56 @@ import Testing
     #expect(reopened.layout(for: "home") != nil)
   }
 
+  @Test func legacyGeometryKeysAreUpgradedToDisplayKeysAndMergedNewestWins() throws {
+    let legacy = """
+    {
+      "1080x1920@-1488,-30 + 1080x1920@1512,0 + 1512x982@0,0 + 1920x1080@-408,982": {
+        "displayFingerprint": "1080x1920@-1488,-30 + 1080x1920@1512,0 + 1512x982@0,0 + 1920x1080@-408,982",
+        "savedAt": "2026-09-14T12:47:44Z",
+        "windows": [
+          {"appBundleID":"a","appName":"A","title":"old","frame":{"x":556,"y":149,"width":400,"height":685}},
+          {"appBundleID":"b","appName":"B","title":"old","frame":{"x":10,"y":10,"width":100,"height":100}},
+          {"appBundleID":"c","appName":"C","title":"old","frame":{"x":20,"y":20,"width":100,"height":100}}
+        ]
+      },
+      "1080x1920@-1488,142 + 1080x1920@1512,142 + 1512x982@0,0 + 1920x1080@-408,982": {
+        "displayFingerprint": "1080x1920@-1488,142 + 1080x1920@1512,142 + 1512x982@0,0 + 1920x1080@-408,982",
+        "savedAt": "2026-09-15T11:01:09Z",
+        "windows": [
+          {"appBundleID":"a","appName":"A","title":"new","frame":{"x":556,"y":149,"width":400,"height":685}},
+          {"appBundleID":"b","appName":"B","title":"new","frame":{"x":-1400,"y":-800,"width":600,"height":400}}
+        ]
+      }
+    }
+    """
+    try legacy.write(to: fileURL, atomically: true, encoding: .utf8)
+    let layouts = LayoutStore(fileURL: fileURL).allLayouts()
+    #expect(layouts.count == 1)
+    let upgraded = try #require(layouts.first)
+    #expect(upgraded.displayFingerprint == "1080x1920:left + 1080x1920:right + 1512x982:main + 1920x1080:above")
+    #expect(upgraded.windows.count == 2)
+    #expect(upgraded.windows.first { $0.appBundleID == "a" }?.displayKey == "1512x982:main")
+    #expect(upgraded.windows.first { $0.appBundleID == "b" }?.displayKey == "1080x1920:left")
+    #expect(upgraded.displays.count == 4)
+  }
+
+  @Test func bestLayoutIgnoresOriginDriftAndFallsBackToTheNewestForOtherDisplays() {
+    let main = CGRect(x: 0, y: 0, width: 1512, height: 982)
+    let dockedBefore = DisplayGeometry.displays(fromCocoaFrames: [main, CGRect(x: -1488, y: 142, width: 1080, height: 1920)])
+    let dockedAfterReboot = DisplayGeometry.displays(fromCocoaFrames: [main, CGRect(x: -1080, y: 142, width: 1080, height: 1920)])
+    let laptopOnly = DisplayGeometry.displays(fromCocoaFrames: [main])
+    let store = LayoutStore(fileURL: fileURL)
+    #expect(store.bestLayout(for: dockedAfterReboot) == nil)
+    store.save(Layout(
+      displayFingerprint: DisplayFingerprint.fingerprint(of: dockedBefore),
+      savedAt: Date(timeIntervalSince1970: 1_757_800_000),
+      windows: [],
+      displays: dockedBefore
+    ))
+    #expect(store.bestLayout(for: dockedAfterReboot)?.match == .sameDisplays)
+    #expect(store.bestLayout(for: laptopOnly)?.match == .differentDisplays)
+  }
+
   private func sampleLayout(fingerprint: String) -> Layout {
     Layout(
       displayFingerprint: fingerprint,

@@ -37,7 +37,7 @@ final class StatusMenu: NSObject, NSMenuDelegate {
     menu.addItem(.separator())
     menu.addItem(savedLayoutSummary)
     menu.addItem(.separator())
-    configureToggle(autoRestoreToggle, "Auto-Restore on Reconnect", #selector(toggleAutoRestore))
+    configureToggle(autoRestoreToggle, "Auto-Restore on Reconnect & Launch", #selector(toggleAutoRestore))
     configureToggle(launchAtLoginToggle, "Launch at Login", #selector(toggleLaunchAtLogin))
     menu.addItem(autoRestoreToggle)
     menu.addItem(launchAtLoginToggle)
@@ -60,8 +60,8 @@ final class StatusMenu: NSObject, NSMenuDelegate {
   }
 
   private func watchForDisplayChanges() {
-    displayWatcher.onDisplaysSettled = { [weak self] fingerprint in
-      self?.autoRestoreIfWanted(for: fingerprint)
+    displayWatcher.onDisplaysSettled = { [weak self] _ in
+      self?.autoRestoreIfWanted()
     }
   }
 
@@ -75,17 +75,24 @@ final class StatusMenu: NSObject, NSMenuDelegate {
     guard ensureAccessibilityAccess() else { return }
     guard !NSScreen.screens.isEmpty else { return }
     let layout = LayoutCapturer.captureCurrentLayout()
+    guard !layout.windows.isEmpty else {
+      flash("No windows to save")
+      return
+    }
     flash(store.save(layout) ? "Saved \(layout.windows.count)" : "Save failed")
   }
 
   @objc private func restoreSavedLayout() {
     guard ensureAccessibilityAccess() else { return }
     guard !NSScreen.screens.isEmpty else { return }
-    guard let layout = store.layout(for: DisplayFingerprint.current()) else {
+    guard let choice = store.bestLayout(for: DisplayGeometry.currentDisplays()) else {
       explainThereIsNothingToRestore()
       return
     }
-    startRestore(of: layout)
+    if choice.match == .differentDisplays {
+      flash("Using last saved layout")
+    }
+    startRestore(of: choice.layout)
   }
 
   @objc private func toggleAutoRestore() {
@@ -114,26 +121,38 @@ final class StatusMenu: NSObject, NSMenuDelegate {
     set { UserDefaults.standard.set(newValue, forKey: "autoRestoreOnReconnect") }
   }
 
-  private func autoRestoreIfWanted(for fingerprint: String) {
+  private func autoRestoreIfWanted() {
     guard autoRestoreEnabled, AccessibilityPermission.isGranted else { return }
-    guard let layout = store.layout(for: fingerprint) else { return }
-    startRestore(of: layout)
+    guard !NSScreen.screens.isEmpty else { return }
+    guard let choice = store.bestLayout(for: DisplayGeometry.currentDisplays()), choice.match == .sameDisplays else {
+      flash("No layout for these displays")
+      return
+    }
+    startRestore(of: choice.layout)
   }
 
   private func startRestore(of layout: Layout) {
     guard restorer == nil else { return }
-    restorer = LayoutRestorer(layout: layout) { [weak self] placed, saved in
+    statusItem.button?.title = " Restoring…"
+    restorer = LayoutRestorer(layout: layout) { [weak self] report in
       self?.restorer = nil
-      self?.flash(placed == saved ? "Restored \(saved)" : "Restored \(placed)/\(saved)")
+      self?.flash(report.everythingLanded ? "Restored \(report.total)" : "Restored \(report.placed)/\(report.total)")
     }
     restorer?.restore()
   }
 
   private func savedLayoutDescription() -> String {
-    guard let layout = store.layout(for: DisplayFingerprint.current()) else {
-      return "Nothing saved for \(displaySetupName()) yet"
+    guard let choice = store.bestLayout(for: DisplayGeometry.currentDisplays()) else {
+      return "Nothing saved yet"
     }
-    return "\(layout.windows.count) windows saved for \(displaySetupName()) \(relativeAge(of: layout))"
+    let windows = choice.layout.windows.count
+    let age = relativeAge(of: choice.layout)
+    switch choice.match {
+    case .sameDisplays:
+      return "\(windows) windows saved for \(displaySetupName()) \(age)"
+    case .differentDisplays:
+      return "No layout for \(displaySetupName()) · last saved: \(windows) windows \(age)"
+    }
   }
 
   private func displaySetupName() -> String {
@@ -150,6 +169,7 @@ final class StatusMenu: NSObject, NSMenuDelegate {
   private func flash(_ message: String) {
     statusItem.button?.title = " \(message)"
     DispatchQueue.main.asyncAfter(deadline: .now() + 2) { [weak self] in
+      guard self?.restorer == nil else { return }
       self?.statusItem.button?.title = ""
     }
   }
@@ -180,7 +200,7 @@ final class StatusMenu: NSObject, NSMenuDelegate {
   private func explainThereIsNothingToRestore() {
     NSApp.activate(ignoringOtherApps: true)
     let alert = NSAlert()
-    alert.messageText = "Nothing saved for this display setup"
+    alert.messageText = "Nothing saved yet"
     alert.informativeText = "Arrange your windows the way you like them, then click Save Layout. Roost keeps a separate layout for every display setup."
     alert.runModal()
   }
